@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic
+python-multipart
+aiofiles
+
+# Optional driver for PostgreSQL
+# psycopg2-binary
