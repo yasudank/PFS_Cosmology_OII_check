@@ -65,20 +65,23 @@ def startup_event():
     finally:
         db.close()
 
-@app.get("/api/images", response_model=List[schemas.Image])
-def read_images(user_name: str = Query(..., min_length=1), skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
-    images = crud.get_images(db, user_name=user_name, skip=skip, limit=limit)
-    return images
+@app.get("/api/images", response_model=schemas.PaginatedImageResponse)
+def read_images(
+    user_name: str = Query(..., min_length=1),
+    filter: str = Query("all", enum=["all", "unrated"]),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    skip = (page - 1) * limit
+    paginated_response = crud.get_paginated_images_with_ratings(
+        db=db, user_name=user_name, filter=filter, skip=skip, limit=limit
+    )
+    return paginated_response
 
-@app.get("/api/images/count")
-def read_images_count(user_name: str = Query(..., min_length=1), db: Session = Depends(get_db)):
-    count = crud.get_images_count(db, user_name=user_name)
-    return {"count": count}
 
 @app.post("/api/images/{image_id}/rate", response_model=schemas.Rating)
 def rate_image(image_id: int, rating_request: schemas.RatingRequest, db: Session = Depends(get_db)):
-    # Pydantic model validation already checks if ratings are between 0 and 2.
-    
     # Check if image exists
     db_image = crud.get_image(db, image_id=image_id)
     if db_image is None:
@@ -90,6 +93,7 @@ def rate_image(image_id: int, rating_request: schemas.RatingRequest, db: Session
         rating2=rating_request.rating2
     )
     
-    new_rating = crud.create_rating(db, image_id=image_id, rating_data=rating_data)
-    return new_rating
+    # Use upsert to create or update the rating
+    new_or_updated_rating = crud.upsert_rating(db, image_id=image_id, rating_data=rating_data)
+    return new_or_updated_rating
 
