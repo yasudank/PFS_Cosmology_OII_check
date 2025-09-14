@@ -15,10 +15,8 @@ def get_paginated_images_with_ratings(
     Gets a paginated list of images, joining the user's ratings if they exist.
     Can be filtered to "all" or "unrated".
     """
-    # Alias for the Rating model to use in the LEFT JOIN
     user_rating = aliased(models.Rating)
 
-    # Base query for images
     query = db.query(
         models.Image,
         user_rating.rating1,
@@ -28,17 +26,11 @@ def get_paginated_images_with_ratings(
         (models.Image.id == user_rating.image_id) & (user_rating.user_name == user_name)
     )
 
-    # Apply filter
     if filter == "unrated":
         query = query.filter(user_rating.id == None)
 
-    # Get total count for pagination
-    total_count = query.count()
-
-    # Get the paginated results
     results = query.order_by(models.Image.id).offset(skip).limit(limit).all()
 
-    # Format the results into the Pydantic schema
     images_with_ratings: List[schemas.ImageWithRating] = []
     for image, rating1, rating2 in results:
         images_with_ratings.append(
@@ -51,9 +43,19 @@ def get_paginated_images_with_ratings(
             )
         )
     
-    return schemas.PaginatedImageResponse(
-        total_count=total_count, images=images_with_ratings
-    )
+    return schemas.PaginatedImageResponse(images=images_with_ratings)
+
+
+def get_rating_counts(db: Session, user_name: str) -> schemas.CountsResponse:
+    """
+    Gets the total number of images and the number of unrated images for a user.
+    """
+    total_images = db.query(models.Image).count()
+
+    rated_image_ids = db.query(models.Rating.image_id).filter(models.Rating.user_name == user_name)
+    unrated_images = db.query(models.Image).filter(models.Image.id.notin_(rated_image_ids)).count()
+
+    return schemas.CountsResponse(total_images=total_images, unrated_images=unrated_images)
 
 
 def create_image(db: Session, image: schemas.ImageCreate):

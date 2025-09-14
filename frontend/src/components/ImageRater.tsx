@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 const PAGE_SIZE = 20;
 const RATING_OPTIONS = [0, 1, 2];
 
-// Types from the backend API
+// Types
 interface ImageWithRating {
     id: number;
     filename: string;
@@ -14,27 +14,28 @@ interface ImageWithRating {
     rating2: number | null;
 }
 
-interface PaginatedResponse {
-    total_count: number;
+interface PaginatedImageResponse {
     images: ImageWithRating[];
+}
+
+interface CountsResponse {
+    total_images: number;
+    unrated_images: number;
 }
 
 interface ImageRaterProps {
     userName: string;
 }
 
-// Type for tracking rating changes made in the UI
 interface RatingChanges {
-    [key: number]: {
-        rating1?: number;
-        rating2?: number;
-    };
+    [key: number]: { rating1?: number; rating2?: number; };
 }
 
 const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     // Server state
     const [images, setImages] = useState<ImageWithRating[]>([]);
-    const [totalCount, setTotalCount] = useState(0);
+    const [totalImages, setTotalImages] = useState(0);
+    const [unratedImages, setUnratedImages] = useState(0);
     
     // UI state
     const [currentPage, setCurrentPage] = useState(1);
@@ -45,24 +46,31 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+    const countForPagination = filter === 'all' ? totalImages : unratedImages;
+    const totalPages = Math.ceil(countForPagination / PAGE_SIZE);
 
-    // Fetch data when page or filter changes
+    const fetchCounts = async () => {
+        try {
+            const params = { user_name: userName };
+            const response = await axios.get<CountsResponse>(`${API_BASE_URL}/api/counts`, { params });
+            setTotalImages(response.data.total_images);
+            setUnratedImages(response.data.unrated_images);
+        } catch (err) {
+            console.error("Failed to load counts", err);
+            setError("Could not load image counts.");
+        }
+    };
+
+    // Main data fetching effect
     useEffect(() => {
         const fetchImages = async () => {
             setIsLoading(true);
             setError(null);
             try {
-                const params = {
-                    user_name: userName,
-                    filter: filter,
-                    page: currentPage,
-                    limit: PAGE_SIZE,
-                };
-                const response = await axios.get<PaginatedResponse>(`${API_BASE_URL}/api/images`, { params });
+                const params = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
+                const response = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params });
                 setImages(response.data.images);
-                setTotalCount(response.data.total_count);
-                setRatingChanges({}); // Clear changes when page loads
+                setRatingChanges({});
             } catch (err) {
                 setError('Failed to load images. Please make sure the backend server is running.');
                 console.error(err);
@@ -75,11 +83,14 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             fetchImages();
         }
     }, [userName, currentPage, filter]);
-    
-    // Reset to page 1 when filter changes
+
+    // Initial data load and refetch counts on filter change
     useEffect(() => {
+        if (userName) {
+            fetchCounts();
+        }
         setCurrentPage(1);
-    }, [filter]);
+    }, [userName, filter]);
 
     // Sync page input with current page
     useEffect(() => {
@@ -92,53 +103,36 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             setCurrentPage(pageNum);
         } else {
             alert(`Please enter a valid page number between 1 and ${totalPages}.`);
-            setPageInput(currentPage.toString()); // Reset to current page
+            setPageInput(currentPage.toString());
         }
     };
 
-
     const handleRatingChange = (imageId: number, ratingName: 'rating1' | 'rating2', value: number) => {
-        setRatingChanges(prev => ({
-            ...prev,
-            [imageId]: {
-                ...prev[imageId],
-                [ratingName]: value,
-            },
-        }));
+        setRatingChanges(prev => ({ ...prev, [imageId]: { ...prev[imageId], [ratingName]: value } }));
     };
 
     const handleSubmitChanges = async () => {
         setIsSubmitting(true);
         setError(null);
 
-        const changedImages = Object.entries(ratingChanges).filter(
-            ([_, r]) => r.rating1 !== undefined || r.rating2 !== undefined
-        );
-
+        const changedImages = Object.entries(ratingChanges).filter(([_, r]) => r.rating1 !== undefined || r.rating2 !== undefined);
         const submissionPromises = changedImages.map(([imageIdStr, changes]) => {
             const imageId = Number(imageIdStr);
             const originalImage = images.find(img => img.id === imageId);
-            
-            const payload = {
-                user_name: userName,
-                rating1: changes.rating1 ?? originalImage?.rating1,
-                rating2: changes.rating2 ?? originalImage?.rating2,
-            };
-
+            const payload = { user_name: userName, rating1: changes.rating1 ?? originalImage?.rating1, rating2: changes.rating2 ?? originalImage?.rating2 };
             if (payload.rating1 === null || payload.rating2 === null) {
                 return Promise.reject(new Error(`Image ${originalImage?.filename.split('/').pop()} must have both ratings selected.`));
             }
-
             return axios.post(`${API_BASE_URL}/api/images/${imageId}/rate`, payload);
         });
 
         try {
             await Promise.all(submissionPromises);
-            // Refetch data for the current page to show updated state and clear changes
+            // Refetch counts and current page data
+            await fetchCounts();
             const params = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
-            const response = await axios.get<PaginatedResponse>(`${API_BASE_URL}/api/images`, { params });
+            const response = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params });
             setImages(response.data.images);
-            setTotalCount(response.data.total_count);
             setRatingChanges({});
         } catch (err: any) {
             setError(err.message || 'An error occurred during submission.');
@@ -150,25 +144,14 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     const renderRatingControl = (image: ImageWithRating, ratingName: 'rating1' | 'rating2', label: string) => {
         const currentValue = ratingChanges[image.id]?.[ratingName] ?? image[ratingName];
-
         return (
             <div className="mb-3">
                 <h6>{label}</h6>
                 <div>
                     {RATING_OPTIONS.map(value => (
                         <div className="form-check form-check-inline" key={value}>
-                            <input
-                                className="form-check-input"
-                                type="radio"
-                                name={`${ratingName}-${image.id}`}
-                                id={`${ratingName}-${image.id}-${value}`}
-                                value={value}
-                                checked={currentValue === value}
-                                onChange={() => handleRatingChange(image.id, ratingName, value)}
-                            />
-                            <label className="form-check-label" htmlFor={`${ratingName}-${image.id}-${value}`}>
-                                {value}
-                            </label>
+                            <input className="form-check-input" type="radio" name={`${ratingName}-${image.id}`} id={`${ratingName}-${image.id}-${value}`} value={value} checked={currentValue === value} onChange={() => handleRatingChange(image.id, ratingName, value)} />
+                            <label className="form-check-label" htmlFor={`${ratingName}-${image.id}-${value}`}>{value}</label>
                         </div>
                     ))}
                 </div>
@@ -189,12 +172,8 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 </div>
                 
                 <div className="d-flex align-items-center">
-                    <span className="me-3 text-muted">{totalCount} images</span>
-                    <button 
-                        className="btn btn-success"
-                        onClick={handleSubmitChanges}
-                        disabled={isSubmitting || changedCount === 0}
-                    >
+                    <span className="me-3 text-muted fw-bold">{unratedImages} / {totalImages} images</span>
+                    <button className="btn btn-success" onClick={handleSubmitChanges} disabled={isSubmitting || changedCount === 0}>
                         {isSubmitting ? 'Submitting...' : `Submit ${changedCount} Changes`}
                     </button>
                 </div>
@@ -208,20 +187,13 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 ) : images.length > 0 ? (
                     images.map(image => {
                         const isUnrated = image.rating1 === null;
-                        const cardClass = filter === 'all' && isUnrated
-                            ? "card mb-4 w-100 border-danger border-2"
-                            : "card mb-4 w-100";
-
+                        const cardClass = filter === 'all' && isUnrated ? "card mb-4 w-100 border-danger border-2" : "card mb-4 w-100";
                         return (
                         <div key={image.id} className={cardClass}>
-                            <div className="card-header text-center">
-                                <h5 className="mb-0">{image.filename.split('/').pop()}</h5>
-                            </div>
+                            <div className="card-header text-center"><h5 className="mb-0">{image.filename.split('/').pop()}</h5></div>
                             <div className="card-body">
                                 <div className="row g-3">
-                                    <div className="col-md-9">
-                                        <img src={`${API_BASE_URL}/${image.path}`} className="img-fluid rounded" alt={image.filename} style={{ maxHeight: '80vh', width: '100%', objectFit: 'contain', backgroundColor: '#f8f9fa' }} />
-                                    </div>
+                                    <div className="col-md-9"><img src={`${API_BASE_URL}/${image.path}`} className="img-fluid rounded" alt={image.filename} style={{ maxHeight: '80vh', width: '100%', objectFit: 'contain', backgroundColor: '#f8f9fa' }} /></div>
                                     <div className="col-md-3 d-flex flex-column justify-content-center">
                                         {renderRatingControl(image, 'rating1', 'Rating 1')}
                                         {renderRatingControl(image, 'rating2', 'Rating 2')}
@@ -231,32 +203,19 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                         </div>
                     )})
                 ) : (
-                     <div className="text-center mt-5">
-                        <p>No images found for the current filter.</p>
-                    </div>
+                     <div className="text-center mt-5"><p>No images found for the current filter.</p></div>
                 )}
             </div>
 
             {!isLoading && totalPages > 1 && (
                  <nav className="d-flex justify-content-center align-items-center my-4">
                     <ul className="pagination mb-0">
-                        <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                            <button className="page-link" onClick={() => setCurrentPage(p => p - 1)}>Previous</button>
-                        </li>
-                        <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                            <button className="page-link" onClick={() => setCurrentPage(p => p + 1)}>Next</button>
-                        </li>
+                        <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}><button className="page-link" onClick={() => setCurrentPage(p => p - 1)}>Previous</button></li>
+                        <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}><button className="page-link" onClick={() => setCurrentPage(p => p + 1)}>Next</button></li>
                     </ul>
                     <div className="d-flex align-items-center ms-3">
                         <span className="me-2 text-muted">Page</span>
-                        <input 
-                            type="number" 
-                            className="form-control" 
-                            style={{width: "80px"}} 
-                            value={pageInput}
-                            onChange={(e) => setPageInput(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Enter') handlePageJump(); }}
-                        />
+                        <input type="number" className="form-control" style={{width: "80px"}} value={pageInput} onChange={(e) => setPageInput(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handlePageJump(); }} />
                         <span className="mx-2 text-muted">of {totalPages}</span>
                         <button className="btn btn-outline-secondary" onClick={handlePageJump}>Go</button>
                     </div>

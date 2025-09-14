@@ -38,8 +38,12 @@ class ImageWithRating(Image):
 
 # Schema for the paginated image list response
 class PaginatedImageResponse(BaseModel):
-    total_count: int
     images: List[ImageWithRating]
+
+# Schema for rating counts
+class CountsResponse(BaseModel):
+    total_images: int
+    unrated_images: int
 
 # Schema for the request body when creating/updating a rating
 class RatingRequest(BaseModel):

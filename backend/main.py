@@ -80,7 +80,12 @@ def read_images(
     paginated_response = crud.get_paginated_images_with_ratings(
         db=db, user_name=user_name, filter=filter, skip=skip, limit=limit
     )
+    # The total_count is removed from this response, it's now fetched from /api/counts
     return paginated_response
+
+@app.get("/api/counts", response_model=schemas.CountsResponse)
+def get_counts(user_name: str = Query(..., min_length=1), db: Session = Depends(get_db)):
+    return crud.get_rating_counts(db=db, user_name=user_name)
 
 
 @app.post("/api/images/{image_id}/rate", response_model=schemas.Rating)
