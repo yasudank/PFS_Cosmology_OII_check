@@ -47,3 +47,10 @@ class RatingRequest(BaseModel):
     rating1: int = Field(..., ge=0, le=2)
     rating2: int = Field(..., ge=0, le=2)
 
+
+# Schema for the pivot table response
+from typing import Dict, Any
+class PivotTableResponse(BaseModel):
+    headers: List[str]
+    rows: List[Dict[str, Any]]
+

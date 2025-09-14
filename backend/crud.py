@@ -90,3 +90,54 @@ def upsert_rating(db: Session, image_id: int, rating_data: schemas.RatingCreate)
     db.commit()
     db.refresh(db_rating)
     return db_rating
+
+def get_all_ratings_as_pivot_table(db: Session) -> schemas.PivotTableResponse:
+    """
+    Fetches all ratings and transforms them into a pivot table format,
+    with images as rows and users' ratings as columns.
+    """
+    all_ratings_flat = db.query(
+        models.Image.filename,
+        models.Rating.user_name,
+        models.Rating.rating1,
+        models.Rating.rating2
+    ).join(models.Rating).all()
+
+    # Intermediate structure: {filename: {user: {rating1: v, rating2: v}}}
+    pivot_data = {}
+    all_users = set()
+
+    for filename, user_name, r1, r2 in all_ratings_flat:
+        if filename not in pivot_data:
+            pivot_data[filename] = {}
+        pivot_data[filename][user_name] = {"rating1": r1, "rating2": r2}
+        all_users.add(user_name)
+    
+    # Also get all images that might not have ratings yet
+    all_images = db.query(models.Image.filename).all()
+    for image_tuple in all_images:
+        filename = image_tuple[0]
+        if filename not in pivot_data:
+            pivot_data[filename] = {}
+
+    sorted_users = sorted(list(all_users))
+    
+    # Define headers
+    headers = ["Filename"]
+    for user in sorted_users:
+        headers.append(f"{user}_rating1")
+        headers.append(f"{user}_rating2")
+
+    # Build rows
+    rows = []
+    sorted_filenames = sorted(pivot_data.keys())
+
+    for filename in sorted_filenames:
+        row_data = {"Filename": filename}
+        for user in sorted_users:
+            user_ratings = pivot_data[filename].get(user, {})
+            row_data[f"{user}_rating1"] = user_ratings.get("rating1")
+            row_data[f"{user}_rating2"] = user_ratings.get("rating2")
+        rows.append(row_data)
+
+    return schemas.PivotTableResponse(headers=headers, rows=rows)

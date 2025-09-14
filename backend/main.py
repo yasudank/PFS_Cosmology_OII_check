@@ -100,3 +100,9 @@ def rate_image(image_id: int, rating_request: schemas.RatingRequest, db: Session
     new_or_updated_rating = crud.upsert_rating(db, image_id=image_id, rating_data=rating_data)
     return new_or_updated_rating
 
+
+@app.get("/api/ratings/summary", response_model=schemas.PivotTableResponse)
+def get_ratings_summary(db: Session = Depends(get_db)):
+    pivot_data = crud.get_all_ratings_as_pivot_table(db)
+    return pivot_data
+
