@@ -5,8 +5,12 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from typing import List
 
+import shutil
+import subprocess
+import datetime
+
 from . import crud, models, schemas
-from .database import SessionLocal, engine, Base
+from .database import SessionLocal, engine, Base, DATABASE_URL
 
 # Recreate the database
 # NOTE: This will delete all existing data.
@@ -51,8 +55,45 @@ def get_db():
 @app.on_event("startup")
 def startup_event():
     """
-    Recursively scans the image directory on startup and registers the images in the database.
+    Application startup event:
+    1. Back up the database.
+    2. Scan the image directory and register images.
     """
+    # --- 1. Automatic Backup Logic ---
+    logger.info("Attempting to back up database...")
+    try:
+        backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "db_backups")
+        os.makedirs(backup_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if DATABASE_URL.startswith("sqlite"):
+            db_path = DATABASE_URL.split(":///", 1)[1]
+            if os.path.exists(db_path):
+                backup_path = os.path.join(backup_dir, f"backup_{timestamp}.db")
+                shutil.copy2(db_path, backup_path)
+                logger.info(f"Successfully created SQLite backup at {backup_path}")
+            else:
+                logger.warning(f"SQLite database file not found at {db_path}, skipping backup.")
+
+        elif DATABASE_URL.startswith("postgresql"):
+            backup_file = os.path.join(backup_dir, f"backup_{timestamp}.sql")
+            
+            if not shutil.which("pg_dump"):
+                 logger.error("pg_dump command not found. Please install PostgreSQL client tools and ensure it's in the system's PATH.")
+            else:
+                # Using a list of arguments is safer than a single command string
+                dump_command = ["pg_dump", "--dbname=" + DATABASE_URL, "-f", backup_file, "--clean"]
+                process = subprocess.run(dump_command, capture_output=True, text=True, check=False)
+                if process.returncode == 0:
+                    logger.info(f"Successfully created PostgreSQL dump at {backup_file}")
+                else:
+                    logger.error(f"pg_dump failed with exit code {process.returncode}: {process.stderr}")
+        
+    except Exception as e:
+        logger.error(f"An error occurred during the backup process: {e}")
+
+    # --- 2. Scan Image Directory ---
+    logger.info("Scanning image directory...")
     db = SessionLocal()
     try:
         supported_extensions = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"}
@@ -60,15 +101,11 @@ def startup_event():
         for root, _, files in os.walk(IMAGE_DIR):
             for filename in files:
                 if any(filename.lower().endswith(ext) for ext in supported_extensions):
-                    # Path relative to the IMAGE_DIR, used as a unique identifier
                     relative_path = os.path.relpath(os.path.join(root, filename), IMAGE_DIR)
-                    # Normalize path separators for cross-platform compatibility (URLs use '/')
                     unique_db_filename = relative_path.replace(os.path.sep, '/')
 
-                    # Check if an image with this unique path is already in the DB
                     db_image = crud.get_image_by_filename(db, filename=unique_db_filename)
                     if not db_image:
-                        # The path for the URL is based on the root IMAGE_DIR
                         url_path = os.path.join(IMAGE_DIR, unique_db_filename).replace(os.path.sep, '/')
                         image_create = schemas.ImageCreate(filename=unique_db_filename, path=url_path)
                         crud.create_image(db, image=image_create)
