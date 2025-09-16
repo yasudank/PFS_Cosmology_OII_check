@@ -11,7 +11,7 @@ from .database import SessionLocal, engine, Base
 # Recreate the database
 # NOTE: This will delete all existing data.
 # For a production environment, a migration tool like Alembic should be used.
-Base.metadata.drop_all(bind=engine)
+# Base.metadata.drop_all(bind=engine)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
