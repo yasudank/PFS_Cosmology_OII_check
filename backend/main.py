@@ -16,6 +16,13 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
+# --- Add logging to display the connected database URL ---
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.info(f"Application startup: Connecting to database at {engine.url}")
+# ------------------------------------------------------
+
 allowed_origins_str = os.environ.get("ALLOWED_ORIGINS", "http://localhost:3000")
 allowed_origins = [origin.strip() for origin in allowed_origins_str.split(',')]
 
