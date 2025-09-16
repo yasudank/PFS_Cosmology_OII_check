@@ -8,6 +8,7 @@ __pycache__/
 # Backend - Database
 /image_rater.db
 /backend/image_rater.db
+/db_backups/
 
 # Frontend - Node.js
 /frontend/node_modules/
