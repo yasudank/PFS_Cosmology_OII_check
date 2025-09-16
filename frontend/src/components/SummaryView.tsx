@@ -94,9 +94,17 @@ const SummaryView: React.FC = () => {
                     <tbody>
                         {summaryData.rows.map((row, index) => (
                             <tr key={index}>
-                                {summaryData.headers.map(header => (
-                                    <td key={header}>{row[header] === null || row[header] === undefined ? '-' : row[header]}</td>
-                                ))}
+                                {summaryData.headers.map(header => {
+                                    const value = row[header];
+                                    let displayValue = value === null || value === undefined ? '-' : value;
+
+                                    // For the Filename column, only show the base name
+                                    if (header === 'Filename' && typeof value === 'string') {
+                                        displayValue = value.split('/').pop() || value;
+                                    }
+
+                                    return <td key={header}>{displayValue}</td>;
+                                })}
                             </tr>
                         ))}
                     </tbody>

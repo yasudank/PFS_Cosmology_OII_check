@@ -125,7 +125,7 @@ def get_all_ratings_as_pivot_table(db: Session) -> schemas.PivotTableResponse:
     sorted_users = sorted(list(all_users))
     
     # Define headers
-    headers = ["Filename"]
+    headers = ["Filename", "Rated By (Count)"]
     for user in sorted_users:
         headers.append(f"{user}_rating1")
         headers.append(f"{user}_rating2")
@@ -135,7 +135,11 @@ def get_all_ratings_as_pivot_table(db: Session) -> schemas.PivotTableResponse:
     sorted_filenames = sorted(pivot_data.keys())
 
     for filename in sorted_filenames:
-        row_data = {"Filename": filename}
+        num_raters = len(pivot_data[filename])
+        row_data = {
+            "Filename": filename,
+            "Rated By (Count)": num_raters
+        }
         for user in sorted_users:
             user_ratings = pivot_data[filename].get(user, {})
             row_data[f"{user}_rating1"] = user_ratings.get("rating1")
