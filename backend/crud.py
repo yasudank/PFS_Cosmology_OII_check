@@ -76,7 +76,7 @@ def find_image_page(
         query = query.filter(user_rating.id == None)
 
     # 3. Get the sorted list of all image IDs for this filter
-    all_image_ids = [row[0] for row in query.order_by(models.Image.id).all()]
+    all_image_ids = [row[0] for row in query.order_by(models.Image.filename).all()]
 
     # 4. Find the index of our target image in the list
     try:

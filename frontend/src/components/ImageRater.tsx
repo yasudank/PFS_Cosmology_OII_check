@@ -72,9 +72,6 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             const response = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params });
             if (response.data.page !== currentPage) {
                 setCurrentPage(response.data.page);
-            } else {
-                // If the image is already on the current page, just clear the error.
-                // The loading state is handled by the main useEffect.
             }
         } catch (err: any) {
             if (axios.isAxiosError(err) && err.response) {
@@ -91,20 +88,44 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         if (userName && filenameFromUrl) {
             const decodedFilename = decodeURIComponent(filenameFromUrl);
             setSearchInput(decodedFilename);
-            performSearch(decodedFilename);
-        }
-    }, [userName, filenameFromUrl, performSearch]);
+            const findAndFetch = async () => {
+                setIsLoading(true);
+                setError(null);
+                try {
+                    // Find the page for the given filename
+                    const findParams = { user_name: userName, filter, filename: decodedFilename, limit: PAGE_SIZE };
+                    const findResponse = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params: findParams });
+                    const pageToFetch = findResponse.data.page;
 
-    // Main data fetching effect
+                    // Set the current page
+                    setCurrentPage(pageToFetch);
+
+                    // Fetch images for that page
+                    const imagesParams = { user_name: userName, filter, page: pageToFetch, limit: PAGE_SIZE };
+                    const imagesResponse = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params: imagesParams });
+                    setImages(imagesResponse.data.images);
+                    setRatingChanges({});
+
+                } catch (err) {
+                    setError('Failed to load images. Please make sure the backend server is running.');
+                    console.error(err);
+                } finally {
+                    setIsLoading(false);
+                }
+            };
+            findAndFetch();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userName, filenameFromUrl, filter]);
+
+
+    // Main data fetching effect for pagination
     useEffect(() => {
         const fetchImages = async () => {
             setIsLoading(true);
             setError(null);
             try {
                 const params: any = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
-                // If filenameFromUrl is present, it means we are coming from a direct link
-                // and the performSearch effect should have already set the correct page.
-                // We don't need to add filename to params here for general image fetching.
                 const response = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params });
                 setImages(response.data.images);
                 setRatingChanges({});
@@ -116,10 +137,11 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             }
         };
 
-        if (userName) {
+        // Only fetch if not navigating via URL filename, as that's handled above
+        if (userName && !filenameFromUrl) {
             fetchImages();
         }
-    }, [userName, currentPage, filter]);
+    }, [userName, currentPage, filter, filenameFromUrl]);
 
     // Initial data load and refetch counts on filter change
     useEffect(() => {
