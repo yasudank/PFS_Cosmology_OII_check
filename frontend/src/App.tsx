@@ -42,7 +42,7 @@ function App() {
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto">
               <li className="nav-item">
-                <Link className="nav-link" to="/summary" target="_blank">View Summary</Link>
+                <Link className="nav-link" to="/summary">View Summary</Link>
               </li>
             </ul>
             <div className="d-flex align-items-center">
