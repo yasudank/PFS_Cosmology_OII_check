@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const PAGE_SIZE = 20;
@@ -32,6 +33,8 @@ interface RatingChanges {
 }
 
 const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
+    const { filename: filenameFromUrl } = useParams<{ filename: string }>();
+
     // Server state
     const [images, setImages] = useState<ImageWithRating[]>([]);
     const [totalImages, setTotalImages] = useState(0);
@@ -41,7 +44,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageInput, setPageInput] = useState("1");
     const [filter, setFilter] = useState<'all' | 'unrated'>('all');
-    const [searchInput, setSearchInput] = useState("");
+    const [searchInput, setSearchInput] = useState(filenameFromUrl ? decodeURIComponent(filenameFromUrl) : "");
     const [ratingChanges, setRatingChanges] = useState<RatingChanges>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -62,13 +65,46 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         }
     }, [userName]);
 
+    const performSearch = useCallback(async (filenameToSearch: string) => {
+        setError(null);
+        try {
+            const params = { user_name: userName, filter, filename: filenameToSearch, limit: PAGE_SIZE };
+            const response = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params });
+            if (response.data.page !== currentPage) {
+                setCurrentPage(response.data.page);
+            } else {
+                // If the image is already on the current page, just clear the error.
+                // The loading state is handled by the main useEffect.
+            }
+        } catch (err: any) {
+            if (axios.isAxiosError(err) && err.response) {
+                setError(err.response.data.detail || 'Image not found.');
+            } else {
+                setError('An error occurred while searching.');
+            }
+            console.error(err);
+        }
+    }, [userName, filter, currentPage]);
+
+    // Effect to trigger search when filenameFromUrl changes
+    useEffect(() => {
+        if (userName && filenameFromUrl) {
+            const decodedFilename = decodeURIComponent(filenameFromUrl);
+            setSearchInput(decodedFilename);
+            performSearch(decodedFilename);
+        }
+    }, [userName, filenameFromUrl, performSearch]);
+
     // Main data fetching effect
     useEffect(() => {
         const fetchImages = async () => {
             setIsLoading(true);
             setError(null);
             try {
-                const params = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
+                const params: any = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
+                // If filenameFromUrl is present, it means we are coming from a direct link
+                // and the performSearch effect should have already set the correct page.
+                // We don't need to add filename to params here for general image fetching.
                 const response = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params });
                 setImages(response.data.images);
                 setRatingChanges({});
@@ -143,30 +179,12 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         }
     };
 
-    const handleSearch = async () => {
+    const handleSearch = () => {
         if (!searchInput.trim()) {
             alert("Please enter a filename to search for.");
             return;
         }
-        // Don't set isLoading to true here, let the main effect handle it
-        setError(null);
-        try {
-            const params = { user_name: userName, filter, filename: searchInput, limit: PAGE_SIZE };
-            const response = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params });
-            if (response.data.page !== currentPage) {
-                setCurrentPage(response.data.page);
-            } else {
-                // If the image is already on the current page, just clear the error.
-                // The loading state is handled by the main useEffect.
-            }
-        } catch (err: any) {
-            if (axios.isAxiosError(err) && err.response) {
-                setError(err.response.data.detail || 'Image not found.');
-            } else {
-                setError('An error occurred while searching.');
-            }
-            console.error(err);
-        }
+        performSearch(searchInput);
     };
 
     const renderRatingControl = (image: ImageWithRating, ratingName: 'rating1' | 'rating2', label: string) => {

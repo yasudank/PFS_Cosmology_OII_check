@@ -60,6 +60,7 @@ function App() {
       <main className="container-fluid mt-4">
         <Routes>
           <Route path="/" element={<ImageRater userName={userName} />} />
+          <Route path="/rate/:filename" element={<ImageRater userName={userName} />} />
           <Route path="/summary" element={<SummaryView />} />
         </Routes>
       </main>

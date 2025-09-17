@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
+import { Link } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -136,9 +137,16 @@ const SummaryView: React.FC = () => {
                                     const value = row[header];
                                     let displayValue = value === null || value === undefined ? '-' : value;
 
-                                    // For the Filename column, only show the base name
                                     if (header === 'Filename' && typeof value === 'string') {
                                         displayValue = value.split('/').pop() || value;
+                                        const encodedFilename = encodeURIComponent(value);
+                                        return (
+                                            <td key={header}>
+                                                <Link to={`/rate/${encodedFilename}`} target="_blank" rel="noopener noreferrer">
+                                                    {displayValue}
+                                                </Link>
+                                            </td>
+                                        );
                                     }
 
                                     return <td key={header}>{displayValue}</td>;
