@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
@@ -12,6 +12,7 @@ const SummaryView: React.FC = () => {
     const [summaryData, setSummaryData] = useState<PivotData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
 
     useEffect(() => {
         const fetchSummary = async () => {
@@ -30,11 +31,43 @@ const SummaryView: React.FC = () => {
         fetchSummary();
     }, []);
 
+    const sortedRows = useMemo(() => {
+        if (!summaryData) return [];
+        let sortableRows = [...summaryData.rows];
+        if (sortConfig !== null) {
+            sortableRows.sort((a, b) => {
+                const aValue = a[sortConfig.key];
+                const bValue = b[sortConfig.key];
+
+                if (aValue === null || aValue === undefined) return 1;
+                if (bValue === null || bValue === undefined) return -1;
+
+                if (aValue < bValue) {
+                    return sortConfig.direction === 'ascending' ? -1 : 1;
+                }
+                if (aValue > bValue) {
+                    return sortConfig.direction === 'ascending' ? 1 : -1;
+                }
+                return 0;
+            });
+        }
+        return sortableRows;
+    }, [summaryData, sortConfig]);
+
+    const requestSort = (key: string) => {
+        let direction: 'ascending' | 'descending' = 'ascending';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        }
+        setSortConfig({ key, direction });
+    };
+
     const handleDownloadCsv = () => {
         if (!summaryData) return;
 
-        const { headers, rows } = summaryData;
-        
+        const { headers } = summaryData;
+        const rows = sortedRows; // Use sorted rows for CSV
+
         const csvHeader = headers.join(',') + '\n';
 
         const csvRows = rows.map(row => {
@@ -81,18 +114,23 @@ const SummaryView: React.FC = () => {
             <div className="d-flex justify-content-between align-items-center mb-3">
                 <h1>Ratings Summary</h1>
                 <button className="btn btn-primary" onClick={handleDownloadCsv}>
-                    Download CSV
+                    Download Sorted CSV
                 </button>
             </div>
             <div className="table-responsive">
                 <table className="table table-striped table-bordered table-hover table-sm">
                     <thead className="table-dark">
                         <tr>
-                            {summaryData.headers.map(header => <th key={header} scope="col" style={{whiteSpace: 'nowrap'}}>{header}</th>)}
+                            {summaryData.headers.map(header => (
+                                <th key={header} scope="col" onClick={() => requestSort(header)} style={{whiteSpace: 'nowrap', cursor: 'pointer'}}>
+                                    {header}
+                                    {sortConfig && sortConfig.key === header ? (sortConfig.direction === 'ascending' ? ' ▲' : ' ▼') : null}
+                                </th>
+                            ))}
                         </tr>
                     </thead>
                     <tbody>
-                        {summaryData.rows.map((row, index) => (
+                        {sortedRows.map((row, index) => (
                             <tr key={index}>
                                 {summaryData.headers.map(header => {
                                     const value = row[header];
