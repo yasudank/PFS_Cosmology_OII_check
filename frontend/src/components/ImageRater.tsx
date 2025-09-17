@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const PAGE_SIZE = 20;
 const RATING_OPTIONS = [0, 1, 2];
 
@@ -50,7 +50,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const countForPagination = filter === 'all' ? totalImages : unratedImages;
     const totalPages = Math.ceil(countForPagination / PAGE_SIZE);
 
-    const fetchCounts = async () => {
+    const fetchCounts = useCallback(async () => {
         try {
             const params = { user_name: userName };
             const response = await axios.get<CountsResponse>(`${API_BASE_URL}/api/counts`, { params });
@@ -60,7 +60,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             console.error("Failed to load counts", err);
             setError("Could not load image counts.");
         }
-    };
+    }, [userName]);
 
     // Main data fetching effect
     useEffect(() => {
@@ -91,7 +91,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             fetchCounts();
         }
         setCurrentPage(1);
-    }, [userName, filter]);
+    }, [userName, filter, fetchCounts]);
 
     // Sync page input with current page
     useEffect(() => {
