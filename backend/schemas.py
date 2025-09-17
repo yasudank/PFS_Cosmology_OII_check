@@ -58,3 +58,8 @@ class PivotTableResponse(BaseModel):
     headers: List[str]
     rows: List[Dict[str, Any]]
 
+
+# Schema for the find image response
+class ImagePageResponse(BaseModel):
+    page: int
+

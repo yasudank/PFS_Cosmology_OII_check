@@ -127,6 +127,24 @@ def read_images(
     # The total_count is removed from this response, it's now fetched from /api/counts
     return paginated_response
 
+@app.get("/api/images/find", response_model=schemas.ImagePageResponse)
+def find_image_by_filename(
+    user_name: str = Query(..., min_length=1),
+    filter: str = Query("all", enum=["all", "unrated"]),
+    filename: str = Query(..., min_length=1),
+    limit: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db)
+):
+    page = crud.find_image_page(
+        db=db, user_name=user_name, filter=filter, filename=filename, limit=limit
+    )
+    if page is None:
+        raise HTTPException(
+            status_code=404, 
+            detail=f'Image with filename containing "{filename}" not found or does not match the current filter.'
+        )
+    return schemas.ImagePageResponse(page=page)
+
 @app.get("/api/counts", response_model=schemas.CountsResponse)
 def get_counts(user_name: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     return crud.get_rating_counts(db=db, user_name=user_name)

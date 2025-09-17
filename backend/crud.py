@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session, aliased
 from . import models, schemas
-from typing import List
+from typing import List, Optional
+import math
 
 def get_image(db: Session, image_id: int):
     return db.query(models.Image).filter(models.Image.id == image_id).first()
@@ -45,6 +46,48 @@ def get_paginated_images_with_ratings(
     
     return schemas.PaginatedImageResponse(images=images_with_ratings)
 
+def find_image_page(
+    db: Session, user_name: str, filter: str, filename: str, limit: int
+) -> Optional[int]:
+    """
+    Finds the page number for a given image filename based on the user and filter.
+    """
+    # 1. Find the target image to get its ID.
+    # Use .like() for partial matching, but prioritize exact matches first.
+    exact_match = db.query(models.Image.id).filter(models.Image.filename == filename).first()
+    if exact_match:
+        target_image_id = exact_match[0]
+    else:
+        # Fallback to partial match if no exact match is found
+        partial_match = db.query(models.Image.id).filter(models.Image.filename.like(f"%{filename}%")).first()
+        if not partial_match:
+            return None
+        target_image_id = partial_match[0]
+
+
+    # 2. Build the same base query as get_paginated_images_with_ratings
+    user_rating = aliased(models.Rating)
+    query = db.query(models.Image.id).outerjoin(
+        user_rating,
+        (models.Image.id == user_rating.image_id) & (user_rating.user_name == user_name)
+    )
+
+    if filter == "unrated":
+        query = query.filter(user_rating.id == None)
+
+    # 3. Get the sorted list of all image IDs for this filter
+    all_image_ids = [row[0] for row in query.order_by(models.Image.id).all()]
+
+    # 4. Find the index of our target image in the list
+    try:
+        index = all_image_ids.index(target_image_id)
+    except ValueError:
+        # The image exists but does not match the current filter (e.g., searching for a rated image in the 'unrated' filter)
+        return None
+
+    # 5. Calculate the page number
+    page = math.floor(index / limit) + 1
+    return page
 
 def get_rating_counts(db: Session, user_name: str) -> schemas.CountsResponse:
     """

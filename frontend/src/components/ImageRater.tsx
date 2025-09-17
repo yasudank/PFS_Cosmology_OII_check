@@ -41,6 +41,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageInput, setPageInput] = useState("1");
     const [filter, setFilter] = useState<'all' | 'unrated'>('all');
+    const [searchInput, setSearchInput] = useState("");
     const [ratingChanges, setRatingChanges] = useState<RatingChanges>({});
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -142,6 +143,32 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         }
     };
 
+    const handleSearch = async () => {
+        if (!searchInput.trim()) {
+            alert("Please enter a filename to search for.");
+            return;
+        }
+        // Don't set isLoading to true here, let the main effect handle it
+        setError(null);
+        try {
+            const params = { user_name: userName, filter, filename: searchInput, limit: PAGE_SIZE };
+            const response = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params });
+            if (response.data.page !== currentPage) {
+                setCurrentPage(response.data.page);
+            } else {
+                // If the image is already on the current page, just clear the error.
+                // The loading state is handled by the main useEffect.
+            }
+        } catch (err: any) {
+            if (axios.isAxiosError(err) && err.response) {
+                setError(err.response.data.detail || 'Image not found.');
+            } else {
+                setError('An error occurred while searching.');
+            }
+            console.error(err);
+        }
+    };
+
     const renderRatingControl = (image: ImageWithRating, ratingName: 'rating1' | 'rating2', label: string) => {
         const currentValue = ratingChanges[image.id]?.[ratingName] ?? image[ratingName];
         return (
@@ -172,6 +199,17 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 </div>
                 
                 <div className="d-flex align-items-center">
+                    <div className="input-group me-3">
+                        <input 
+                            type="text" 
+                            className="form-control" 
+                            placeholder="Find by filename..." 
+                            value={searchInput} 
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+                        />
+                        <button className="btn btn-outline-primary" type="button" onClick={handleSearch}>Find</button>
+                    </div>
                     <span className="me-3 text-muted fw-bold">{unratedImages} / {totalImages} images</span>
                     <button className="btn btn-success" onClick={handleSubmitChanges} disabled={isSubmitting || changedCount === 0}>
                         {isSubmitting ? 'Submitting...' : `Submit ${changedCount} Changes`}
