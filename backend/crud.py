@@ -30,7 +30,7 @@ def get_paginated_images_with_ratings(
     if filter == "unrated":
         query = query.filter(user_rating.id == None)
 
-    results = query.order_by(models.Image.id).offset(skip).limit(limit).all()
+    results = query.order_by(models.Image.filename).offset(skip).limit(limit).all()
 
     images_with_ratings: List[schemas.ImageWithRating] = []
     for image, rating1, rating2 in results:
