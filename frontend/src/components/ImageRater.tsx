@@ -41,11 +41,13 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [images, setImages] = useState<ImageWithRating[]>([]);
     const [totalImages, setTotalImages] = useState(0);
     const [unratedImages, setUnratedImages] = useState(0);
+    const [directories, setDirectories] = useState<string[]>([]);
     
     // UI state
     const [currentPage, setCurrentPage] = useState(1);
     const [pageInput, setPageInput] = useState("1");
     const [filter, setFilter] = useState<'all' | 'unrated'>('all');
+    const [selectedDirectory, setSelectedDirectory] = useState<string>('all'); // Default to 'all'
     const [searchInput, setSearchInput] = useState(filenameFromUrl ? decodeURIComponent(filenameFromUrl) : "");
     const [ratingChanges, setRatingChanges] = useState<RatingChanges>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -55,6 +57,20 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     const countForPagination = filter === 'all' ? totalImages : unratedImages;
     const totalPages = Math.ceil(countForPagination / PAGE_SIZE);
+
+    // Effect to fetch the list of directories on mount
+    useEffect(() => {
+        const fetchDirectories = async () => {
+            try {
+                const response = await axios.get<string[]>(`${API_BASE_URL}/api/directories`);
+                setDirectories(response.data);
+            } catch (err) {
+                console.error("Failed to load directories", err);
+                // Not setting a user-facing error for this, as the app can function without it.
+            }
+        };
+        fetchDirectories();
+    }, []);
 
     // Effect to scroll to the image specified in the URL hash and highlight it
     useEffect(() => {
@@ -81,7 +97,10 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     const fetchCounts = useCallback(async () => {
         try {
-            const params = { user_name: userName };
+            const params: { user_name: string; directory?: string } = { user_name: userName };
+            if (selectedDirectory !== 'all') {
+                params.directory = selectedDirectory;
+            }
             const response = await axios.get<CountsResponse>(`${API_BASE_URL}/api/counts`, { params });
             setTotalImages(response.data.total_images);
             setUnratedImages(response.data.unrated_images);
@@ -89,12 +108,15 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             console.error("Failed to load counts", err);
             setError("Could not load image counts.");
         }
-    }, [userName]);
+    }, [userName, selectedDirectory]);
 
     const performSearch = useCallback(async (filenameToSearch: string) => {
         setError(null);
         try {
-            const params = { user_name: userName, filter, filename: filenameToSearch, limit: PAGE_SIZE };
+            const params: { user_name: string; filter: string; filename: string; limit: number; directory?: string; } = { user_name: userName, filter, filename: filenameToSearch, limit: PAGE_SIZE };
+            if (selectedDirectory !== 'all') {
+                params.directory = selectedDirectory;
+            }
             const response = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params });
             if (response.data.page !== currentPage) {
                 setCurrentPage(response.data.page);
@@ -107,7 +129,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             }
             console.error(err);
         }
-    }, [userName, filter, currentPage]);
+    }, [userName, filter, currentPage, selectedDirectory]);
 
     // Effect to trigger search when filenameFromUrl changes
     useEffect(() => {
@@ -119,7 +141,10 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 setError(null);
                 try {
                     // Find the page for the given filename
-                    const findParams = { user_name: userName, filter, filename: decodedFilename, limit: PAGE_SIZE };
+                    const findParams: { user_name: string; filter: string; filename: string; limit: number; directory?: string; } = { user_name: userName, filter, filename: decodedFilename, limit: PAGE_SIZE };
+                    if (selectedDirectory !== 'all') {
+                        findParams.directory = selectedDirectory;
+                    }
                     const findResponse = await axios.get<{ page: number }>(`${API_BASE_URL}/api/images/find`, { params: findParams });
                     const pageToFetch = findResponse.data.page;
 
@@ -127,7 +152,10 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                     setCurrentPage(pageToFetch);
 
                     // Fetch images for that page
-                    const imagesParams = { user_name: userName, filter, page: pageToFetch, limit: PAGE_SIZE };
+                    const imagesParams: { user_name: string; filter: string; page: number; limit: number; directory?: string; } = { user_name: userName, filter, page: pageToFetch, limit: PAGE_SIZE };
+                    if (selectedDirectory !== 'all') {
+                        imagesParams.directory = selectedDirectory;
+                    }
                     const imagesResponse = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params: imagesParams });
                     setImages(imagesResponse.data.images);
                     setRatingChanges({});
@@ -142,7 +170,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             findAndFetch();
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [userName, filenameFromUrl, filter]);
+    }, [userName, filenameFromUrl, filter, selectedDirectory]);
 
 
     // Main data fetching effect for pagination
@@ -152,6 +180,9 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             setError(null);
             try {
                 const params: any = { user_name: userName, filter, page: currentPage, limit: PAGE_SIZE };
+                if (selectedDirectory !== 'all') {
+                    params.directory = selectedDirectory;
+                }
                 const response = await axios.get<PaginatedImageResponse>(`${API_BASE_URL}/api/images`, { params });
                 setImages(response.data.images);
                 setRatingChanges({});
@@ -167,7 +198,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         if (userName && !filenameFromUrl) {
             fetchImages();
         }
-    }, [userName, currentPage, filter, filenameFromUrl]);
+    }, [userName, currentPage, filter, filenameFromUrl, selectedDirectory]);
 
     // Initial data load and refetch counts on filter change
     useEffect(() => {
@@ -175,7 +206,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             fetchCounts();
         }
         setCurrentPage(1);
-    }, [userName, filter, fetchCounts]);
+    }, [userName, filter, fetchCounts, selectedDirectory]);
 
     // Sync page input with current page
     useEffect(() => {
@@ -266,11 +297,27 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 `}
             </style>
             <div className="d-flex justify-content-between align-items-center mb-3 sticky-top bg-light p-3 rounded shadow-sm" style={{ top: '56px' }}>
-                <div className="btn-group">
-                    <input type="radio" className="btn-check" name="filter" id="filter-all" autoComplete="off" checked={filter === 'all'} onChange={() => setFilter('all')} />
-                    <label className="btn btn-outline-secondary" htmlFor="filter-all">All Images</label>
-                    <input type="radio" className="btn-check" name="filter" id="filter-unrated" autoComplete="off" checked={filter === 'unrated'} onChange={() => setFilter('unrated')} />
-                    <label className="btn btn-outline-secondary" htmlFor="filter-unrated">Unrated</label>
+                <div className="d-flex align-items-center">
+                    <div className="btn-group me-3">
+                        <input type="radio" className="btn-check" name="filter" id="filter-all" autoComplete="off" checked={filter === 'all'} onChange={() => setFilter('all')} />
+                        <label className="btn btn-outline-secondary" htmlFor="filter-all">All Images</label>
+                        <input type="radio" className="btn-check" name="filter" id="filter-unrated" autoComplete="off" checked={filter === 'unrated'} onChange={() => setFilter('unrated')} />
+                        <label className="btn btn-outline-secondary" htmlFor="filter-unrated">Unrated</label>
+                    </div>
+                    {directories.length > 0 && (
+                        <div className="me-3">
+                            <select 
+                                className="form-select"
+                                value={selectedDirectory}
+                                onChange={(e) => setSelectedDirectory(e.target.value)}
+                            >
+                                <option value="all">All Directories</option>
+                                {directories.map(dir => (
+                                    <option key={dir} value={dir}>{dir}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
                 
                 <div className="d-flex align-items-center">

@@ -3,7 +3,7 @@ from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 
 import shutil
 import subprocess
@@ -112,17 +112,38 @@ def startup_event():
     finally:
         db.close()
 
+@app.get("/api/directories", response_model=List[str])
+def get_image_directories(db: Session = Depends(get_db)):
+    """
+    Scans the database and returns a sorted list of unique directories
+    that contain images.
+    """
+    all_filenames = db.query(models.Image.filename).all()
+    
+    # Extract the directory part from each path.
+    # A file in the root will not have a '/', so os.path.dirname will be empty.
+    # We use a set to automatically handle uniqueness.
+    directories = set()
+    for (filename,) in all_filenames:
+        dir_path = os.path.dirname(filename)
+        if dir_path: # Only add if it's not a root file
+            directories.add(dir_path)
+            
+    return sorted(list(directories))
+
+
 @app.get("/api/images", response_model=schemas.PaginatedImageResponse)
 def read_images(
     user_name: str = Query(..., min_length=1),
     filter: str = Query("all", enum=["all", "unrated"]),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
+    directory: Optional[str] = Query(None, description="Filter images by a specific subdirectory"),
     db: Session = Depends(get_db)
 ):
     skip = (page - 1) * limit
     paginated_response = crud.get_paginated_images_with_ratings(
-        db=db, user_name=user_name, filter=filter, skip=skip, limit=limit
+        db=db, user_name=user_name, filter=filter, skip=skip, limit=limit, directory=directory
     )
     # The total_count is removed from this response, it's now fetched from /api/counts
     return paginated_response
@@ -133,10 +154,11 @@ def find_image_by_filename(
     filter: str = Query("all", enum=["all", "unrated"]),
     filename: str = Query(..., min_length=1),
     limit: int = Query(20, ge=1, le=100),
+    directory: Optional[str] = Query(None, description="Filter images by a specific subdirectory"),
     db: Session = Depends(get_db)
 ):
     page = crud.find_image_page(
-        db=db, user_name=user_name, filter=filter, filename=filename, limit=limit
+        db=db, user_name=user_name, filter=filter, filename=filename, limit=limit, directory=directory
     )
     if page is None:
         raise HTTPException(
@@ -146,8 +168,8 @@ def find_image_by_filename(
     return schemas.ImagePageResponse(page=page)
 
 @app.get("/api/counts", response_model=schemas.CountsResponse)
-def get_counts(user_name: str = Query(..., min_length=1), db: Session = Depends(get_db)):
-    return crud.get_rating_counts(db=db, user_name=user_name)
+def get_counts(user_name: str = Query(..., min_length=1), directory: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    return crud.get_rating_counts(db=db, user_name=user_name, directory=directory)
 
 
 @app.post("/api/images/{image_id}/rate", response_model=schemas.Rating)

@@ -10,11 +10,12 @@ def get_image_by_filename(db: Session, filename: str):
     return db.query(models.Image).filter(models.Image.filename == filename).first()
 
 def get_paginated_images_with_ratings(
-    db: Session, user_name: str, filter: str, skip: int, limit: int
+    db: Session, user_name: str, filter: str, skip: int, limit: int, directory: Optional[str] = None
 ) -> schemas.PaginatedImageResponse:
     """
     Gets a paginated list of images, joining the user's ratings if they exist.
     Can be filtered to "all" or "unrated".
+    Can be filtered by a specific subdirectory.
     """
     user_rating = aliased(models.Rating)
 
@@ -26,6 +27,9 @@ def get_paginated_images_with_ratings(
         user_rating,
         (models.Image.id == user_rating.image_id) & (user_rating.user_name == user_name)
     )
+
+    if directory:
+        query = query.filter(models.Image.filename.startswith(directory + '/'))
 
     if filter == "unrated":
         query = query.filter(user_rating.id == None)
@@ -47,19 +51,28 @@ def get_paginated_images_with_ratings(
     return schemas.PaginatedImageResponse(images=images_with_ratings)
 
 def find_image_page(
-    db: Session, user_name: str, filter: str, filename: str, limit: int
+    db: Session, user_name: str, filter: str, filename: str, limit: int, directory: Optional[str] = None
 ) -> Optional[int]:
     """
-    Finds the page number for a given image filename based on the user and filter.
+    Finds the page number for a given image filename based on the user, filter, and directory.
     """
     # 1. Find the target image to get its ID.
     # Use .like() for partial matching, but prioritize exact matches first.
-    exact_match = db.query(models.Image.id).filter(models.Image.filename == filename).first()
+    exact_match_query = db.query(models.Image.id).filter(models.Image.filename == filename)
+    if directory:
+        exact_match_query = exact_match_query.filter(models.Image.filename.startswith(directory + '/'))
+    
+    exact_match = exact_match_query.first()
+
     if exact_match:
         target_image_id = exact_match[0]
     else:
         # Fallback to partial match if no exact match is found
-        partial_match = db.query(models.Image.id).filter(models.Image.filename.like(f"%{filename}%")).first()
+        partial_match_query = db.query(models.Image.id).filter(models.Image.filename.like(f"%{filename}%"))
+        if directory:
+            partial_match_query = partial_match_query.filter(models.Image.filename.startswith(directory + '/'))
+
+        partial_match = partial_match_query.first()
         if not partial_match:
             return None
         target_image_id = partial_match[0]
@@ -71,6 +84,9 @@ def find_image_page(
         user_rating,
         (models.Image.id == user_rating.image_id) & (user_rating.user_name == user_name)
     )
+
+    if directory:
+        query = query.filter(models.Image.filename.startswith(directory + '/'))
 
     if filter == "unrated":
         query = query.filter(user_rating.id == None)
@@ -89,14 +105,21 @@ def find_image_page(
     page = math.floor(index / limit) + 1
     return page
 
-def get_rating_counts(db: Session, user_name: str) -> schemas.CountsResponse:
+def get_rating_counts(db: Session, user_name: str, directory: Optional[str] = None) -> schemas.CountsResponse:
     """
-    Gets the total number of images and the number of unrated images for a user.
+    Gets the total number of images and the number of unrated images for a user,
+    optionally filtered by a directory.
     """
-    total_images = db.query(models.Image).count()
+    base_query = db.query(models.Image)
+    if directory:
+        base_query = base_query.filter(models.Image.filename.startswith(directory + '/'))
+
+    total_images = base_query.count()
 
     rated_image_ids = db.query(models.Rating.image_id).filter(models.Rating.user_name == user_name)
-    unrated_images = db.query(models.Image).filter(models.Image.id.notin_(rated_image_ids)).count()
+    
+    unrated_query = base_query.filter(models.Image.id.notin_(rated_image_ids))
+    unrated_images = unrated_query.count()
 
     return schemas.CountsResponse(total_images=total_images, unrated_images=unrated_images)
 
