@@ -2,6 +2,16 @@
 
 This is a simple web application to rate images.
 
+### Features
+
+*   **Image Rating**: Users can view images one by one and assign two different numerical ratings.
+*   **Filter Views**: The main view can be toggled to show all images or only images that the current user has not yet rated.
+*   **Summary Table**: A summary view displays all images and their ratings from all users in a sortable table.
+*   **Quick Navigation**:
+    *   Clicking a filename in the summary table navigates to the rating page and automatically scrolls to that specific image.
+    *   The navigated-to image is briefly highlighted with a blue shadow to make it easy to identify.
+*   **File Search**: Users can search for a specific image by its filename to quickly jump to it.
+
 ## Configuration (Environment Variables)
 
 This application is configured using environment variables. This is crucial for running the frontend and backend on different machines, or when using a server IP address instead of `localhost`.
