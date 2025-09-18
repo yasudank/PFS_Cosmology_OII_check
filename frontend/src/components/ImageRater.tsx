@@ -47,7 +47,10 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageInput, setPageInput] = useState("1");
     const [filter, setFilter] = useState<'all' | 'unrated'>('all');
-    const [selectedDirectory, setSelectedDirectory] = useState<string>('all'); // Default to 'all'
+    const [selectedDirectory, setSelectedDirectory] = useState<string>(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get('directory') || 'all';
+    });
     const [searchInput, setSearchInput] = useState(filenameFromUrl ? decodeURIComponent(filenameFromUrl) : "");
     const [ratingChanges, setRatingChanges] = useState<RatingChanges>({});
     const [isLoading, setIsLoading] = useState(true);
@@ -223,6 +226,18 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
         }
     };
 
+    const handleDirectoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const newDirectory = e.target.value;
+        setSelectedDirectory(newDirectory);
+        const searchParams = new URLSearchParams(location.search);
+        if (newDirectory === 'all') {
+            searchParams.delete('directory');
+        } else {
+            searchParams.set('directory', newDirectory);
+        }
+        navigate({ search: searchParams.toString() });
+    };
+
     const handleRatingChange = (imageId: number, ratingName: 'rating1' | 'rating2', value: number) => {
         setRatingChanges(prev => ({ ...prev, [imageId]: { ...prev[imageId], [ratingName]: value } }));
     };
@@ -309,7 +324,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                             <select 
                                 className="form-select"
                                 value={selectedDirectory}
-                                onChange={(e) => setSelectedDirectory(e.target.value)}
+                                onChange={handleDirectoryChange}
                             >
                                 <option value="all">All Directories</option>
                                 {directories.map(dir => (

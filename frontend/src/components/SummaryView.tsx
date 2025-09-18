@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
@@ -14,13 +14,22 @@ const SummaryView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'ascending' | 'descending' } | null>(null);
+    const location = useLocation();
 
     useEffect(() => {
         const fetchSummary = async () => {
             setIsLoading(true);
             setError(null);
             try {
-                const response = await axios.get<PivotData>(`${API_BASE_URL}/api/ratings/summary`);
+                const searchParams = new URLSearchParams(location.search);
+                const directory = searchParams.get('directory');
+
+                const params: { directory?: string } = {};
+                if (directory) {
+                    params.directory = directory;
+                }
+
+                const response = await axios.get<PivotData>(`${API_BASE_URL}/api/ratings/summary`, { params });
                 setSummaryData(response.data);
             } catch (err) {
                 setError('Failed to load summary data.');
@@ -30,7 +39,7 @@ const SummaryView: React.FC = () => {
             }
         };
         fetchSummary();
-    }, []);
+    }, [location.search]);
 
     const sortedRows = useMemo(() => {
         if (!summaryData) return [];
@@ -140,9 +149,10 @@ const SummaryView: React.FC = () => {
                                     if (header === 'Filename' && typeof value === 'string') {
                                         displayValue = value.split('/').pop() || value;
                                         const encodedFilename = encodeURIComponent(value);
+                                        const toPath = `/rate/${encodedFilename}${location.search}#${encodedFilename}`;
                                         return (
                                             <td key={header}>
-                                                <Link to={`/rate/${encodedFilename}#${encodedFilename}`}>
+                                                <Link to={toPath}>
                                                     {displayValue}
                                                 </Link>
                                             </td>

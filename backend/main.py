@@ -191,7 +191,7 @@ def rate_image(image_id: int, rating_request: schemas.RatingRequest, db: Session
 
 
 @app.get("/api/ratings/summary", response_model=schemas.PivotTableResponse)
-def get_ratings_summary(db: Session = Depends(get_db)):
-    pivot_data = crud.get_all_ratings_as_pivot_table(db)
+def get_ratings_summary(directory: Optional[str] = Query(None), db: Session = Depends(get_db)):
+    pivot_data = crud.get_all_ratings_as_pivot_table(db, directory=directory)
     return pivot_data
 

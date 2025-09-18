@@ -159,17 +159,29 @@ def upsert_rating(db: Session, image_id: int, rating_data: schemas.RatingCreate)
     db.refresh(db_rating)
     return db_rating
 
-def get_all_ratings_as_pivot_table(db: Session) -> schemas.PivotTableResponse:
+def get_all_ratings_as_pivot_table(db: Session, directory: Optional[str] = None) -> schemas.PivotTableResponse:
     """
     Fetches all ratings and transforms them into a pivot table format,
     with images as rows and users' ratings as columns.
+    Optionally filters by a specific directory.
     """
-    all_ratings_flat = db.query(
+    # Base query for ratings, joining Image and Rating
+    ratings_query = db.query(
         models.Image.filename,
         models.Rating.user_name,
         models.Rating.rating1,
         models.Rating.rating2
-    ).join(models.Rating).all()
+    ).join(models.Rating, models.Image.id == models.Rating.image_id)
+
+    # Base query for all images
+    images_query = db.query(models.Image.filename)
+
+    # Apply directory filter if provided
+    if directory:
+        ratings_query = ratings_query.filter(models.Image.filename.startswith(directory + '/'))
+        images_query = images_query.filter(models.Image.filename.startswith(directory + '/'))
+
+    all_ratings_flat = ratings_query.all()
 
     # Intermediate structure: {filename: {user: {rating1: v, rating2: v}}}
     pivot_data = {}
@@ -181,8 +193,8 @@ def get_all_ratings_as_pivot_table(db: Session) -> schemas.PivotTableResponse:
         pivot_data[filename][user_name] = {"rating1": r1, "rating2": r2}
         all_users.add(user_name)
     
-    # Also get all images that might not have ratings yet
-    all_images = db.query(models.Image.filename).all()
+    # Also get all images from the filtered directory that might not have ratings yet
+    all_images = images_query.all()
     for image_tuple in all_images:
         filename = image_tuple[0]
         if filename not in pivot_data:

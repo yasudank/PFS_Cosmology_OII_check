@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import ImageRater from './components/ImageRater';
 import Login from './components/Login';
 import SummaryView from './components/SummaryView';
 
 function App() {
   const [userName, setUserName] = useState<string | null>(null);
+  const location = useLocation();
 
   useEffect(() => {
     const storedUserName = localStorage.getItem('userName');
@@ -35,14 +36,14 @@ function App() {
     <div>
       <nav className="navbar navbar-expand-lg navbar-light bg-light sticky-top shadow-sm" style={{ zIndex: 1030 }}>
         <div className="container-fluid">
-          <Link className="navbar-brand" to="/">Image Rating System</Link>
+          <Link className="navbar-brand" to={{ pathname: "/", search: location.search }}>Image Rating System</Link>
           <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse" id="navbarNav">
             <ul className="navbar-nav me-auto">
               <li className="nav-item">
-                <Link className="nav-link" to="/summary">View Summary</Link>
+                <Link className="nav-link" to={{ pathname: "/summary", search: location.search }}>View Summary</Link>
               </li>
             </ul>
             <div className="d-flex align-items-center">
