@@ -51,11 +51,12 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [highlightedImageId, setHighlightedImageId] = useState<string | null>(null);
 
     const countForPagination = filter === 'all' ? totalImages : unratedImages;
     const totalPages = Math.ceil(countForPagination / PAGE_SIZE);
 
-    // Effect to scroll to the image specified in the URL hash
+    // Effect to scroll to the image specified in the URL hash and highlight it
     useEffect(() => {
         if (location.hash && images.length > 0) {
             const imageId = location.hash.substring(1); // Remove the '#'
@@ -64,7 +65,16 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 // Use a timeout to ensure the element is fully rendered
                 setTimeout(() => {
                     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setHighlightedImageId(imageId);
                 }, 100);
+
+                // Remove the highlight after a delay
+                const timer = setTimeout(() => {
+                    setHighlightedImageId(null);
+                }, 2000); // Highlight for 2 seconds
+
+                // Cleanup the timer if the component unmounts or hash changes
+                return () => clearTimeout(timer);
             }
         }
     }, [images, location.hash]);
@@ -247,6 +257,14 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     return (
         <div className="container-fluid mt-4">
+            <style>
+                {`
+                    .highlighted-image {
+                        transition: box-shadow 0.5s ease-in-out;
+                        box-shadow: 0 0 15px 5px rgba(0, 123, 255, 0.6);
+                    }
+                `}
+            </style>
             <div className="d-flex justify-content-between align-items-center mb-3 sticky-top bg-light p-3 rounded shadow-sm" style={{ top: '56px' }}>
                 <div className="btn-group">
                     <input type="radio" className="btn-check" name="filter" id="filter-all" autoComplete="off" checked={filter === 'all'} onChange={() => setFilter('all')} />
@@ -282,7 +300,13 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                 ) : images.length > 0 ? (
                     images.map(image => {
                         const isUnrated = image.rating1 === null;
-                        const cardClass = filter === 'all' && isUnrated ? "card mb-4 w-100 border-danger border-2" : "card mb-4 w-100";
+                        let cardClass = "card mb-4 w-100";
+                        if (filter === 'all' && isUnrated) {
+                            cardClass += " border-danger border-2";
+                        }
+                        if (encodeURIComponent(image.filename) === highlightedImageId) {
+                            cardClass += ' highlighted-image';
+                        }
                         return (
                         <div key={image.id} id={encodeURIComponent(image.filename)} className={cardClass}>
                             <div className="card-header text-center"><h5 className="mb-0">{image.filename.split('/').pop()}</h5></div>
