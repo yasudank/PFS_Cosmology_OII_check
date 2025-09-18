@@ -228,14 +228,22 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     const handleDirectoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const newDirectory = e.target.value;
+        // This state update is somewhat redundant because the navigation will trigger a re-render
+        // with the new URL, which then sets the state. However, keeping it can make the UI feel
+        // slightly more responsive if there's any delay in navigation.
         setSelectedDirectory(newDirectory);
-        const searchParams = new URLSearchParams(location.search);
-        if (newDirectory === 'all') {
-            searchParams.delete('directory');
-        } else {
+
+        const searchParams = new URLSearchParams(); // Start with fresh params
+        if (newDirectory !== 'all') {
             searchParams.set('directory', newDirectory);
         }
-        navigate({ search: searchParams.toString() });
+        
+        // By navigating to the root path, we clear the `/rate/:filename` context,
+        // ensuring the component fetches the list of images for the new directory.
+        navigate({
+            pathname: '/',
+            search: searchParams.toString(),
+        });
     };
 
     const handleRatingChange = (imageId: number, ratingName: 'rating1' | 'rating2', value: number) => {
