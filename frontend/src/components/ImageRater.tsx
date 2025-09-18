@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { useParams, useLocation } from 'react-router-dom';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const PAGE_SIZE = 20;
@@ -35,6 +35,7 @@ interface RatingChanges {
 const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const { filename: filenameFromUrl } = useParams<{ filename: string }>();
     const location = useLocation();
+    const navigate = useNavigate();
 
     // Server state
     const [images, setImages] = useState<ImageWithRating[]>([]);
@@ -221,7 +222,8 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
             alert("Please enter a filename to search for.");
             return;
         }
-        performSearch(searchInput);
+        const encodedFilename = encodeURIComponent(searchInput.trim());
+        navigate(`/rate/${encodedFilename}#${encodedFilename}`);
     };
 
     const renderRatingControl = (image: ImageWithRating, ratingName: 'rating1' | 'rating2', label: string) => {
