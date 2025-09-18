@@ -142,7 +142,7 @@ const SummaryView: React.FC = () => {
                                         const encodedFilename = encodeURIComponent(value);
                                         return (
                                             <td key={header}>
-                                                <Link to={`/rate/${encodedFilename}`}>
+                                                <Link to={`/rate/${encodedFilename}#${encodedFilename}`}>
                                                     {displayValue}
                                                 </Link>
                                             </td>

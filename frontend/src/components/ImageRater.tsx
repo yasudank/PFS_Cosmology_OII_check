@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { useParams } from 'react-router-dom';
+import { useParams, useLocation } from 'react-router-dom';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 const PAGE_SIZE = 20;
@@ -34,6 +34,7 @@ interface RatingChanges {
 
 const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
     const { filename: filenameFromUrl } = useParams<{ filename: string }>();
+    const location = useLocation();
 
     // Server state
     const [images, setImages] = useState<ImageWithRating[]>([]);
@@ -52,6 +53,20 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
 
     const countForPagination = filter === 'all' ? totalImages : unratedImages;
     const totalPages = Math.ceil(countForPagination / PAGE_SIZE);
+
+    // Effect to scroll to the image specified in the URL hash
+    useEffect(() => {
+        if (location.hash && images.length > 0) {
+            const imageId = location.hash.substring(1); // Remove the '#'
+            const element = document.getElementById(imageId);
+            if (element) {
+                // Use a timeout to ensure the element is fully rendered
+                setTimeout(() => {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+        }
+    }, [images, location.hash]);
 
     const fetchCounts = useCallback(async () => {
         try {
@@ -267,7 +282,7 @@ const ImageRater: React.FC<ImageRaterProps> = ({ userName }) => {
                         const isUnrated = image.rating1 === null;
                         const cardClass = filter === 'all' && isUnrated ? "card mb-4 w-100 border-danger border-2" : "card mb-4 w-100";
                         return (
-                        <div key={image.id} className={cardClass}>
+                        <div key={image.id} id={encodeURIComponent(image.filename)} className={cardClass}>
                             <div className="card-header text-center"><h5 className="mb-0">{image.filename.split('/').pop()}</h5></div>
                             <div className="card-body">
                                 <div className="row g-3">
