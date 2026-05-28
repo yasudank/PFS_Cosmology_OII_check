@@ -6,11 +6,13 @@ This is a simple web application to rate images.
 
 *   **Image Rating**: Users can view images one by one and assign two different numerical ratings.
 *   **Filter Views**: The main view can be toggled to show all images or only images that the current user has not yet rated.
+*   **Subdirectory Filter**: Users can filter images by a specific subdirectory (automatically scanned from `sample_images`).
 *   **Summary Table**: A summary view displays all images and their ratings from all users in a sortable table.
 *   **Quick Navigation**:
     *   Clicking a filename in the summary table navigates to the rating page and automatically scrolls to that specific image.
     *   The navigated-to image is briefly highlighted with a blue shadow to make it easy to identify.
 *   **File Search**: Users can search for a specific image by its filename to quickly jump to it.
+*   **Automatic Backup**: On startup, the backend automatically creates a database backup (a file copy for SQLite or a SQL dump for PostgreSQL) in the `db_backups` directory.
 
 ## Configuration (Environment Variables)
 
@@ -39,6 +41,7 @@ These variables should be set in your terminal *before* running the `uvicorn` co
     -   (See the "Using PostgreSQL" section below for more details).
 
 -   **`ALLOWED_ORIGINS`**: A comma-separated list of web addresses (origins) that are allowed to connect to the backend API (CORS policy).
+    -   **Default**: If this is not set, the application defaults to `http://localhost:3000`.
     -   **For development (less secure)**: To allow any client to connect, you can use a wildcard.
         ```bash
         export ALLOWED_ORIGINS="*"
@@ -116,4 +119,5 @@ To switch to PostgreSQL, follow these steps:
 
     The format for the URL is `postgresql://<user>:<password>@<host>:<port>/<dbname>`.
 
-    For production use, you should use a database migration tool like Alembic to manage schema changes instead of the automatic `drop_all`/`create_all` used in this prototype.
+    For production use, you should use a database migration tool like Alembic to manage schema changes instead of the automatic setup (`create_all` on startup, with `drop_all` commented out) used in this prototype.
+
